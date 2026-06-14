@@ -140,49 +140,50 @@ const STYLES = `
     margin-bottom: 16px;
   }
 
-  /* ── Upload zone ── */
-  .upload-zone {
-    border: 2px dashed var(--parch-dark);
+  /* ── Upload button ── */
+  .upload-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 16px 20px;
+    border: 2px solid var(--parch-dark);
     border-radius: 4px;
-    padding: 32px 24px;
-    text-align: center;
+    background: transparent;
     cursor: pointer;
     transition: border-color 0.2s, background 0.2s;
-    background: transparent;
-    position: relative;
-  }
-
-  .upload-zone:hover, .upload-zone.drag-over {
-    border-color: var(--gold);
-    background: rgba(184, 134, 11, 0.06);
-  }
-
-  .upload-zone input[type="file"] {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
-    width: 100%;
-    height: 100%;
-  }
-
-  .upload-icon {
-    font-size: 32px;
-    margin-bottom: 8px;
-    display: block;
-  }
-
-  .upload-primary {
     font-family: 'Cinzel', serif;
     font-size: 14px;
     font-weight: 600;
     color: var(--ink);
-    margin-bottom: 4px;
+    text-align: center;
   }
 
-  .upload-secondary {
-    font-size: 14px;
+  .upload-btn:hover:not(:disabled) {
+    border-color: var(--gold);
+    background: rgba(184, 134, 11, 0.06);
+  }
+
+  .upload-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .upload-btn-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  /* ── Upload loading state ── */
+  .upload-reading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px;
     color: var(--slate);
+    font-size: 15px;
+    font-style: italic;
   }
 
   /* ── File loaded state ── */
@@ -524,7 +525,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [history, setHistory] = useState([]);
   const [ddbOpen, setDdbOpen] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [rolling, setRolling] = useState(false);
   const [d20Face, setD20Face] = useState("🎲");
   const fileInputRef = useRef(null);
@@ -540,33 +541,28 @@ export default function App() {
   const handleFile = useCallback(async (file) => {
     if (!file) return;
     if (file.type !== "application/pdf") {
-      setError("Please upload a PDF file.");
+      setError("Please upload a PDF — other file types aren't supported.");
       return;
     }
     setError(null);
+    setUploading(true);
     setPdfFile(file);
     try {
       const b64 = await readFileAsBase64(file);
       setPdfBase64(b64);
     } catch {
       setError("Could not read that file. Please try again.");
+      setPdfFile(null);
+    } finally {
+      setUploading(false);
     }
   }, []);
-
-  const handleDrop = useCallback(
-    (e) => {
-      e.preventDefault();
-      setDragOver(false);
-      const file = e.dataTransfer.files?.[0];
-      if (file) handleFile(file);
-    },
-    [handleFile]
-  );
 
   const clearFile = () => {
     setPdfFile(null);
     setPdfBase64(null);
     setError(null);
+    setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -645,42 +641,26 @@ export default function App() {
       <div className="card">
         <p className="card-label">Character Sheet</p>
 
-        {!pdfFile ? (
-          <>
-            <div
-              className={`upload-zone${dragOver ? " drag-over" : ""}`}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="application/pdf"
-                onChange={(e) => handleFile(e.target.files?.[0])}
-                tabIndex={-1}
-              />
-              <span className="upload-icon">📜</span>
-              <p className="upload-primary">Drop your character sheet PDF here</p>
-              <p className="upload-secondary">or tap to browse</p>
-            </div>
-            <button className="ddb-helper-toggle" onClick={() => setDdbOpen((v) => !v)}>
-              {ddbOpen ? "Hide" : "How do I get a PDF from D&D Beyond?"}
-            </button>
-            {ddbOpen && (
-              <div className="ddb-helper">
-                <strong>Exporting from D&amp;D Beyond</strong>
-                <ol>
-                  <li>Open your character on <em>dndbeyond.com</em></li>
-                  <li>Click the <strong>…</strong> menu in the top-right of your character sheet</li>
-                  <li>Select <strong>Export PDF</strong></li>
-                  <li>Save the file, then upload it here</li>
-                </ol>
-              </div>
-            )}
-          </>
-        ) : (
+        {/* Hidden file input — triggered by button below */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/pdf"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleFile(file);
+            // Reset so selecting the same file again still fires onChange
+            e.target.value = "";
+          }}
+        />
+
+        {uploading ? (
+          <div className="upload-reading">
+            <span className="rune-spin">✦</span>
+            Reading your character sheet…
+          </div>
+        ) : pdfFile && pdfBase64 ? (
           <div className="file-loaded">
             <span className="file-loaded-icon">📄</span>
             <div className="file-loaded-info">
@@ -688,6 +668,30 @@ export default function App() {
               <p className="file-loaded-size">{formatSize(pdfFile.size)}</p>
             </div>
             <button className="file-clear-btn" onClick={clearFile} title="Remove file">✕</button>
+          </div>
+        ) : (
+          <button
+            className="upload-btn"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+          >
+            <span className="upload-btn-icon">📜</span>
+            Choose character sheet PDF
+          </button>
+        )}
+
+        <button className="ddb-helper-toggle" onClick={() => setDdbOpen((v) => !v)}>
+          {ddbOpen ? "Hide instructions" : "How do I get a PDF from D&D Beyond?"}
+        </button>
+        {ddbOpen && (
+          <div className="ddb-helper">
+            <strong>Exporting from D&amp;D Beyond</strong>
+            <ol>
+              <li>Open your character on <em>dndbeyond.com</em></li>
+              <li>Click the <strong>…</strong> menu in the top-right of your character sheet</li>
+              <li>Select <strong>Export PDF</strong></li>
+              <li>Save the file, then upload it here</li>
+            </ol>
           </div>
         )}
       </div>
