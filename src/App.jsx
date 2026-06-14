@@ -26,7 +26,10 @@ const STYLES = `
     --white:      #faf7f2;
   }
 
-  html, body { height: 100%; }
+  html, body, #root {
+    height: 100%;
+    overflow: hidden;
+  }
 
   body {
     background-color: var(--ink);
@@ -37,52 +40,79 @@ const STYLES = `
     font-family: 'Crimson Text', Georgia, serif;
     font-size: 18px;
     line-height: 1.6;
-    min-height: 100vh;
   }
 
   #root {
-    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  /* ── Scrollable content area ── */
+  .scroll-area {
+    flex: 1;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 48px 16px 80px;
+    padding: 20px 16px 16px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Sticky input footer ── */
+  .input-footer {
+    flex-shrink: 0;
+    width: 100%;
+    background: linear-gradient(to bottom, transparent, var(--ink) 20%);
+    padding: 12px 16px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .input-footer .card {
+    margin-bottom: 0;
+    width: 100%;
+    max-width: 640px;
   }
 
   /* ── Header ── */
   .header {
-    text-align: center;
-    margin-bottom: 48px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
     max-width: 640px;
-  }
-
-  .header-eyebrow {
-    font-family: 'Cinzel', serif;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-    color: var(--gold);
-    margin-bottom: 12px;
+    margin-bottom: 24px;
   }
 
   .header-title {
     font-family: 'Cinzel', serif;
-    font-size: clamp(28px, 5vw, 44px);
+    font-size: clamp(18px, 3.5vw, 24px);
     font-weight: 700;
     color: var(--parchment);
-    line-height: 1.15;
-    margin-bottom: 16px;
     letter-spacing: 0.02em;
+    line-height: 1.2;
   }
 
   .header-title span {
     color: var(--gold-light);
   }
 
-  .header-sub {
-    font-size: 17px;
-    color: var(--parch-dark);
-    font-style: italic;
+  .header-eyebrow {
+    font-family: 'Cinzel', serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    opacity: 0.7;
+  }
+
+  .header-icon {
+    font-size: 28px;
+    flex-shrink: 0;
   }
 
   /* ── Divider ── */
@@ -229,6 +259,48 @@ const STYLES = `
     flex-shrink: 0;
   }
   .file-clear-btn:hover { color: var(--crimson); }
+
+  /* ── Sheet collapsed bar ── */
+  .sheet-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 640px;
+    padding: 10px 14px;
+    background: rgba(184,134,11,0.08);
+    border: 1px solid rgba(184,134,11,0.25);
+    border-radius: 4px;
+    margin-bottom: 16px;
+    animation: fadeUp 0.3s ease;
+  }
+
+  .sheet-bar-icon { font-size: 16px; flex-shrink: 0; }
+
+  .sheet-bar-name {
+    flex: 1;
+    font-family: 'Cinzel', serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--parch-mid);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sheet-bar-change {
+    background: none;
+    border: none;
+    font-family: 'Crimson Text', serif;
+    font-size: 14px;
+    color: var(--gold);
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    flex-shrink: 0;
+  }
+  .sheet-bar-change:hover { color: var(--gold-light); }
 
   /* ── DDB Helper ── */
   .ddb-helper-toggle {
@@ -627,76 +699,105 @@ export default function App() {
     <>
       <style>{STYLES}</style>
 
+      <div className="scroll-area">
+
       <header className="header">
-        <p className="header-eyebrow">D&amp;D 5e &amp; 2024</p>
-        <h1 className="header-title">
-          Know Your<br /><span>Character</span>
-        </h1>
-        <p className="header-sub">
-          Upload your sheet. Ask anything.
-        </p>
+        <span className="header-icon">🎲</span>
+        <div>
+          <h1 className="header-title">Know Your <span>Character</span></h1>
+          <p className="header-eyebrow">D&amp;D 5e &amp; 2024</p>
+        </div>
       </header>
 
-      {/* ── Character Sheet Upload ── */}
-      <div className="card">
-        <p className="card-label">Character Sheet</p>
+      {/* Hidden file input — always present */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFile(file);
+          e.target.value = "";
+        }}
+      />
 
-        {/* Hidden file input — triggered by button below */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/pdf"
-          style={{ display: "none" }}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleFile(file);
-            // Reset so selecting the same file again still fires onChange
-            e.target.value = "";
-          }}
-        />
+      {/* ── Sheet loaded: collapsed bar ── */}
+      {pdfFile && pdfBase64 && !uploading && (
+        <div className="sheet-bar">
+          <span className="sheet-bar-icon">📄</span>
+          <span className="sheet-bar-name">{pdfFile.name}</span>
+          <button className="sheet-bar-change" onClick={clearFile}>Change</button>
+        </div>
+      )}
 
-        {uploading ? (
-          <div className="upload-reading">
-            <span className="rune-spin">✦</span>
-            Reading your character sheet…
-          </div>
-        ) : pdfFile && pdfBase64 ? (
-          <div className="file-loaded">
-            <span className="file-loaded-icon">📄</span>
-            <div className="file-loaded-info">
-              <p className="file-loaded-name">{pdfFile.name}</p>
-              <p className="file-loaded-size">{formatSize(pdfFile.size)}</p>
-            </div>
-            <button className="file-clear-btn" onClick={clearFile} title="Remove file">✕</button>
-          </div>
-        ) : (
+      {/* ── No sheet: full upload card ── */}
+      {!pdfFile && !uploading && (
+        <div className="card">
+          <p className="card-label">Character Sheet</p>
           <button
             className="upload-btn"
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
           >
             <span className="upload-btn-icon">📜</span>
             Choose character sheet PDF
           </button>
-        )}
+          <button className="ddb-helper-toggle" onClick={() => setDdbOpen((v) => !v)}>
+            {ddbOpen ? "Hide instructions" : "How do I get a PDF from D&D Beyond?"}
+          </button>
+          {ddbOpen && (
+            <div className="ddb-helper">
+              <strong>Exporting from D&amp;D Beyond</strong>
+              <ol>
+                <li>Open your character on <em>dndbeyond.com</em></li>
+                <li>Click the <strong>…</strong> menu in the top-right of your character sheet</li>
+                <li>Select <strong>Export PDF</strong></li>
+                <li>Save the file, then upload it here</li>
+              </ol>
+            </div>
+          )}
+        </div>
+      )}
 
-        <button className="ddb-helper-toggle" onClick={() => setDdbOpen((v) => !v)}>
-          {ddbOpen ? "Hide instructions" : "How do I get a PDF from D&D Beyond?"}
-        </button>
-        {ddbOpen && (
-          <div className="ddb-helper">
-            <strong>Exporting from D&amp;D Beyond</strong>
-            <ol>
-              <li>Open your character on <em>dndbeyond.com</em></li>
-              <li>Click the <strong>…</strong> menu in the top-right of your character sheet</li>
-              <li>Select <strong>Export PDF</strong></li>
-              <li>Save the file, then upload it here</li>
-            </ol>
+      {/* ── Uploading state ── */}
+      {uploading && (
+        <div className="card">
+          <div className="upload-reading">
+            <span className="rune-spin">✦</span>
+            Reading your character sheet…
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* ── Question ── */}
+      {/* ── Answer history ── */}
+      {history.length > 0 && (
+        <div className="answer-card">
+          <p className="answer-label">The Oracle Speaks</p>
+          {history.map((item, i) => (
+            <div key={i} className={i > 0 ? "history-item" : ""}>
+              <p className="history-q">{item.q}</p>
+              <p className="history-a">{item.a}</p>
+            </div>
+          ))}
+          <button className="clear-btn" onClick={() => setHistory([])}>Clear answers</button>
+        </div>
+      )}
+
+      {/* ── Loading ── */}
+      {loading && (
+        <div className="loading-row">
+          <span className="rune-spin">✦</span>
+          Consulting the arcane archives…
+        </div>
+      )}
+
+      {/* ── Error ── */}
+      {error && <div className="error-card">{error}</div>}
+
+    </div>{/* end scroll-area */}
+
+    {/* ── Sticky input footer ── */}
+    <div className="input-footer">
       <div className="card">
         <p className="card-label">Ask anything</p>
         <div className="question-row">
@@ -720,7 +821,7 @@ export default function App() {
           </button>
         </div>
 
-        {/* Example chips */}
+        {/* Example chips — only before first question */}
         {history.length === 0 && (
           <div className="examples">
             {EXAMPLE_QUESTIONS.map((q) => (
@@ -736,31 +837,7 @@ export default function App() {
           </div>
         )}
       </div>
-
-      {/* ── Error ── */}
-      {error && <div className="error-card">{error}</div>}
-
-      {/* ── Loading ── */}
-      {loading && (
-        <div className="loading-row">
-          <span className="rune-spin">✦</span>
-          Consulting the arcane archives…
-        </div>
-      )}
-
-      {/* ── Answer history ── */}
-      {history.length > 0 && (
-        <div className="answer-card">
-          <p className="answer-label">The Oracle Speaks</p>
-          {history.map((item, i) => (
-            <div key={i} className={i > 0 ? "history-item" : ""}>
-              <p className="history-q">{item.q}</p>
-              <p className="history-a">{item.a}</p>
-            </div>
-          ))}
-          <button className="clear-btn" onClick={() => setHistory([])}>Clear answers</button>
-        </div>
-      )}
+    </div>
     </>
   );
 }
