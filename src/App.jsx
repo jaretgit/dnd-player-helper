@@ -591,7 +591,7 @@ function formatSize(bytes) {
 
 export default function App() {
   const [pdfFile, setPdfFile] = useState(null);
-  const [pdfBase64, setPdfBase64] = useState(null);
+  const [character, setCharacter] = useState(null);
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -622,9 +622,19 @@ export default function App() {
     setPdfFile(file);
     try {
       const b64 = await readFileAsBase64(file);
-      setPdfBase64(b64);
-    } catch {
-      setError("Could not read that file. Please try again.");
+      const response = await fetch("/api/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdfBase64: b64 }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || "Could not read character sheet.");
+      }
+      const data = await response.json();
+      setCharacter(data.character);
+    } catch (err) {
+      setError(err.message || "Could not read that file. Please try again.");
       setPdfFile(null);
     } finally {
       setUploading(false);
@@ -633,9 +643,10 @@ export default function App() {
 
   const clearFile = () => {
     setPdfFile(null);
-    setPdfBase64(null);
+    setCharacter(null);
     setError(null);
     setUploading(false);
+    setHistory([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -656,7 +667,7 @@ export default function App() {
     });
 
   const ask = async () => {
-    if (!pdfBase64) { setError("Upload your character sheet first."); return; }
+    if (!character) { setError("Upload your character sheet first."); return; }
     if (!question.trim()) { setError("Ask a question first."); return; }
     setError(null);
     setLoading(true);
@@ -667,7 +678,7 @@ export default function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          pdfBase64,
+          character,
           question: question.trim(),
         }),
       });
@@ -728,16 +739,20 @@ export default function App() {
       />
 
       {/* ── Sheet loaded: collapsed bar ── */}
-      {pdfFile && pdfBase64 && !uploading && (
+      {pdfFile && character && !uploading && (
         <div className="sheet-bar">
           <span className="sheet-bar-icon">📄</span>
-          <span className="sheet-bar-name">{pdfFile.name}</span>
+          <span className="sheet-bar-name">
+            {character.name
+              ? `${character.name} — ${character.class || ""} ${character.level || ""}`.trim()
+              : pdfFile.name}
+          </span>
           <button className="sheet-bar-change" onClick={clearFile}>Change</button>
         </div>
       )}
 
       {/* ── No sheet: full upload card ── */}
-      {!pdfFile && !uploading && (
+      {!pdfFile && !character && !uploading && (
         <div className="card">
           <p className="card-label">Character Sheet</p>
           <button
@@ -769,7 +784,7 @@ export default function App() {
         <div className="card">
           <div className="upload-reading">
             <span className="rune-spin">✦</span>
-            Reading your character sheet…
+            Studying your character sheet…
           </div>
         </div>
       )}
@@ -822,7 +837,7 @@ export default function App() {
           <button
             className={`roll-btn${rolling ? " rolling" : ""}`}
             onClick={ask}
-            disabled={loading || !pdfBase64}
+            disabled={loading || !character}
             title="Ask"
             aria-label="Ask"
           >

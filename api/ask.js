@@ -2,25 +2,25 @@ export const config = {
   maxDuration: 30,
 };
 
-const SYSTEM_PROMPT = `You are an expert D&D assistant supporting both D&D 5e (2014) and the 2024 Player's Handbook revision. The player has shared their character sheet as a PDF.
+const SYSTEM_PROMPT = `You are an expert D&D assistant supporting both D&D 5e (2014) and the 2024 Player's Handbook revision. The player has provided their character data as a JSON summary extracted from their character sheet.
 
 Your job:
-- Answer their question accurately using their character sheet data.
+- Answer their question accurately using the character data provided.
 - Be concise and direct — players are at the table, not reading an essay.
 - Reference specific numbers, abilities, or features from their sheet when relevant.
 - If a rule is edition-dependent, note which edition applies.
-- If you can't find something on the sheet, say so clearly.
-- Never invent stats or abilities that aren't on the sheet.`;
+- If you can't find something in the character data, say so clearly.
+- Never invent stats or abilities that aren't in the data.`;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { pdfBase64, question } = req.body;
+  const { character, question } = req.body;
 
-  if (!pdfBase64 || !question?.trim()) {
-    return res.status(400).json({ error: "Missing pdfBase64 or question." });
+  if (!character || !question?.trim()) {
+    return res.status(400).json({ error: "Missing character data or question." });
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -43,20 +43,7 @@ export default async function handler(req, res) {
         messages: [
           {
             role: "user",
-            content: [
-              {
-                type: "document",
-                source: {
-                  type: "base64",
-                  media_type: "application/pdf",
-                  data: pdfBase64,
-                },
-              },
-              {
-                type: "text",
-                text: question.trim(),
-              },
-            ],
+            content: `Character data:\n${JSON.stringify(character, null, 2)}\n\nQuestion: ${question.trim()}`,
           },
         ],
       }),
