@@ -601,6 +601,7 @@ export default function App() {
   const [rolling, setRolling] = useState(false);
   const [d20Face, setD20Face] = useState("🎲");
   const fileInputRef = useRef(null);
+  const latestAnswerRef = useRef(null);
 
   const readFileAsBase64 = (file) =>
     new Promise((resolve, reject) => {
@@ -679,8 +680,12 @@ export default function App() {
       const data = await response.json();
       const answer = data.answer || "No response.";
 
-      setHistory((prev) => [{ q: question.trim(), a: answer }, ...prev]);
+      setHistory((prev) => [...prev, { q: question.trim(), a: answer }]);
       setQuestion("");
+      // Scroll the top of the new answer into view after render
+      setTimeout(() => {
+        latestAnswerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
     } catch (err) {
       setError(err.message || "Something went wrong. Please try again.");
     } finally {
@@ -774,7 +779,11 @@ export default function App() {
         <div className="answer-card">
           <p className="answer-label">The Oracle Speaks</p>
           {history.map((item, i) => (
-            <div key={i} className={i > 0 ? "history-item" : ""}>
+            <div
+              key={i}
+              className={i > 0 ? "history-item" : ""}
+              ref={i === history.length - 1 ? latestAnswerRef : null}
+            >
               <p className="history-q">{item.q}</p>
               <p className="history-a">{item.a}</p>
             </div>
